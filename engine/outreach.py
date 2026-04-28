@@ -1,94 +1,97 @@
 """
-F4Leads Outreach Generator — Template-based personalized outreach.
-No API key needed. Uses AtmonFX's proven templates with smart variable substitution.
+F4Leads Outreach Generator v3 — Contextual, real hooks.
+Generates personalized outreach based on ACTUAL lead data.
 """
 
 import re
 import random
 
-# ─── OUTREACH TEMPLATES ──────────────────────────────────────────────────────
+# ─── TEMPLATES (Updated for better response) ─────────────────────────────────────────
 
 TEMPLATES = {
     'brand_cgi': {
         'email': {
-            'subject': 'What if {product_ref} looked this good on screen?',
+            'subject': 'Quick question about {company}\'s product visuals',
             'body': """Hi {first_name},
 
-I came across {company}'s work — {hook}. Sharp direction, but I kept thinking: what would a fully CG version look like?
+Saw {company}'s work — {hook}.
 
-We're AtmonFX, a specialized CGI & VFX studio out of India. We create photorealistic product commercials, brand films, and motion visuals for D2C and consumer brands — work that would typically cost 10x more from a production house, done at an agency-friendly budget.
+I'm Dev. We create CGI product visuals for D2C brands — photorealistic renders, product animations, brand films.
 
-We actually built a speculative spot for a product in your category — I'd love to share it with you. Takes 90 seconds to watch.
+Quick question: Are you currently working with a 3D/CGI studio for your product visuals, or is this something you might be looking into?
 
-Worth a quick 15-min call this week?
+Reason I'm asking: We specialize in exactly this — and have capacity to take on new projects.
+
+Happy to share our portfolio if relevant.
 
 Best,
 Dev
-Co-Founder, AtmonFX
-dev@atmonfx.com | atmonfx.com""",
+dev@atmonfx.com""",
         },
         'linkedin': {
-            'body': """Hi {first_name} — saw {company}'s recent {hook}. Clean work.
+            'body': """Hi {first_name} — saw {company}'s {hook}.
 
-Quick context: I'm Dev from AtmonFX, a CGI studio in India. We build photorealistic product visuals for D2C brands at a fraction of what a production house charges.
+Quick question: working with a CGI studio for product visuals, or looking for options?
 
-We made a spec CGI spot for a brand in your space — happy to share if relevant. No pitch, just good work.
+We do photorealistic 3D renders + product animations for D2C brands. Happy to share work if relevant.
 
-Worth a look?""",
+""",
         },
     },
 
     'ott_film': {
         'email': {
-            'subject': 'VFX partner for {company}\'s next project?',
+            'subject': 'VFX support for {company}\'s production?',
             'body': """Hi {first_name},
 
-I came across {company} — {hook}. Compelling work.
+Saw {company}'s recent production — {hook}.
 
-Quick context: I'm Dev from AtmonFX, a CGI & VFX studio in India. We specialize in VFX for OTT series and film — environments, creature work, compositing, title sequences.
+I'm Dev from AtmonFX. We provide VFX support for film/OTT — environments, compositing, creature work.
 
-We've been building our reel specifically for episodic content. If you ever need a reliable, fast-turnaround VFX partner for any part of your pipeline, I'd love to show you what we can do.
+Quick question: Do you have a VFX partner for current/future projects, or is this an area you might be looking to outsource?
 
-No pitch — just happy to share our work if it's relevant.
+Happy to share our reel if useful.
 
 Best,
 Dev
-Co-Founder, AtmonFX
-dev@atmonfx.com | atmonfx.com""",
+dev@atmonfx.com""",
         },
         'linkedin': {
             'body': """Hi {first_name} — {hook}.
 
-I'm Dev from AtmonFX, a CGI studio in India. We specialize in VFX for OTT series — environments, creature work, compositing.
+We provide VFX support for film/OTT. Environments, compositing, creature work.
 
-If you ever need a fast-turnaround VFX partner, I'd love to show you our reel. Worth a look?""",
+Looking for a VFX partner, or already have one in place?
+
+""",
         },
     },
 
     'archviz': {
         'email': {
-            'subject': 'Real-time walkthroughs > static renders (here\'s why)',
+            'subject': 'Real-time walkthroughs for {company}?',
             'body': """Hi {first_name},
 
-Most ArchViz studios deliver the same thing: static renders, maybe a pre-rendered flythrough. Clients are increasingly expecting more.
+Saw {company}'s work — {hook}.
 
-We're AtmonFX — we build real-time interactive walkthroughs in Unreal Engine. Your clients can explore a space in real time, change materials on the fly, and experience lighting at different times of day — all before a single brick is laid.
+We build real-time walkthroughs in Unreal Engine — clients can explore spaces live, change materials, lighting.
 
-This shortens approval cycles, reduces revision rounds, and gives you a serious competitive edge over studios delivering static images.
+Quick question: Is real-time something you're offering clients, or would be valuable to add?
 
-We built a sample walkthrough for a residential property — I can send you a recorded version, or share the interactive file if you'd like to explore it.
+Happy to show a quick demo.
 
-Interested?
-
-Dev | AtmonFX
-dev@atmonfx.com | atmonfx.com""",
+Best,
+Dev
+dev@atmonfx.com""",
         },
         'linkedin': {
-            'body': """Hi {first_name} — saw {company}'s work in {hook}. Clean renders.
+            'body': """Hi {first_name} — {hook}.
 
-Quick question: have you explored real-time interactive walkthroughs in Unreal Engine? Clients can change materials, lighting, and explore spaces live — before construction begins.
+We do Unreal Engine real-time walkthroughs. Clients explore spaces live, change materials on the fly.
 
-We're AtmonFX. We built a sample project I'd love to share. Interested?""",
+Offering this already, or it's something you'd like to add?
+
+""",
         },
     },
 
@@ -97,163 +100,149 @@ We're AtmonFX. We built a sample project I'd love to share. Interested?""",
             'subject': '3D art support for {company}?',
             'body': """Hi {first_name},
 
-I came across {company} — {hook}. Interesting project.
+Saw {company}'s project — {hook}.
 
-We're AtmonFX, a 3D art and CGI studio based in India. We support indie and mid-size studios with game-ready assets — character modeling, environment work, props — on a project or retainer basis.
+We provide 3D art support for game studios — assets, characters, environments. Blender pipeline → Unity/Unreal ready.
 
-Our pipeline runs on Blender, optimized for game engine export (Unity/Unreal). Fast turnaround, consistent quality, and we slot into your existing pipeline without overhead.
+Quick question: Need additional 3D art support, or your team has it covered?
 
-If you're looking for reliable 3D art support, I'd love to show you some of our work.
+Happy to share our portfolio.
 
 Best,
 Dev
-Co-Founder, AtmonFX
-dev@atmonfx.com | atmonfx.com""",
+dev@atmonfx.com""",
         },
         'linkedin': {
-            'body': """Hi {first_name} — saw {company}'s work. {hook}.
+            'body': """Hi {first_name} — {hook}.
 
-I'm Dev from AtmonFX — we do 3D art and game-ready assets (Blender pipeline → Unity/Unreal). We support indie studios on project or retainer basis.
+We do game-ready 3D assets (Blender → Unity/Unreal). Need extra art support?
 
-If you need reliable 3D art support, happy to share our portfolio. Worth a look?""",
+""",
         },
     },
 
     'product_viz': {
         'email': {
-            'subject': 'Studio-quality product visuals — without the studio',
+            'subject': '3D product renders for {company}?',
             'body': """Hi {first_name},
 
-I noticed {company}'s product line — {hook}. Great products deserve premium visuals.
+Saw {company}'s product line — {hook}.
 
-We're AtmonFX, a CGI studio in India that creates studio-quality product renders for e-commerce, advertising, and packaging. 360-degree spins, exploded views, lifestyle shots — all done in 3D, no physical photoshoot needed.
+We create studio-quality 3D product renders — no physical photoshoot needed.
 
-The result: consistent, pixel-perfect visuals for every SKU, at a fraction of traditional photography costs. And we can update angles, materials, or backgrounds instantly whenever you need a refresh.
-
-Want to see a few before/after examples from our recent work?
+Quick question: Handling product visuals in-house, or is this something you'd consider outsourcing?
 
 Best,
 Dev
-Co-Founder, AtmonFX
-dev@atmonfx.com | atmonfx.com""",
+dev@atmonfx.com""",
         },
         'linkedin': {
-            'body': """Hi {first_name} — {company}'s product line caught my eye. {hook}.
+            'body': """Hi {first_name} — {hook}.
 
-I'm Dev from AtmonFX. We create studio-quality 3D product renders — e-commerce, ads, packaging. No physical shoot needed, pixel-perfect results.
+We do 3D product renders (no physical shoot needed). Handling in-house or looking for options?
 
-Happy to share some examples if relevant. Worth a look?""",
+""",
         },
     },
 }
 
-# Follow-up templates
-FOLLOWUP_TEMPLATES = {
-    'day4': {
-        'subject': 'Re: {original_subject}',
-        'body': """Hi {first_name},
+# ─── HOOK GENERATORS (Based on REAL data) ─────────────────────────────────────────
 
-Just circling back on my note from a few days ago.
+def _generate_hook(lead):
+    """Generate contextual hook from ACTUAL lead data."""
+    description = lead.get('description', '')
+    signals = lead.get('signals', [])
+    company = lead.get('company_name', '')
+    source = lead.get('source', '')
 
-In case it got buried — I had shared that we'd built a speculative CGI spot relevant to {company}'s category. Happy to send it across directly if a link is easier than a call.
-
-No pressure either way.
-
-Dev | AtmonFX""",
-    },
-    'day10': {
-        'subject': 'Something relevant for {company}',
-        'body': """Hi {first_name},
-
-Won't keep nudging — this is the last one.
-
-I made a short breakdown video showing exactly how we'd approach a CGI campaign for a brand like {company}. Covers: concept → 3D build → lighting → final comp. About 4 minutes.
-
-If this sparks any interest for upcoming projects, I'd love to chat. If not, totally understand.
-
-Dev
-AtmonFX | atmonfx.com""",
-    },
-}
-
-# Hook generators by niche
-HOOKS = {
-    'brand_cgi': [
-        "the brand identity is solid",
-        "the product line looks premium",
-        "the latest campaign caught my eye",
-        "your digital presence is strong",
-        "the product photography is clean",
-    ],
-    'ott_film': [
-        "looks like a compelling production",
-        "the slate looks interesting this year",
-        "impressive body of work",
-        "the production quality stands out",
-    ],
-    'archviz': [
-        "architectural visualization",
-        "the design portfolio is clean",
-        "the rendering work is solid",
-        "the project portfolio stands out",
-    ],
-    'gaming': [
-        "Interesting game concept",
-        "the art style is distinct",
-        "the development looks promising",
-        "interesting project in the pipeline",
-    ],
-    'product_viz': [
-        "Great product design",
-        "the product line looks premium",
-        "clean product presentation",
-        "solid product catalog",
-    ],
-}
+    # Priority 1: From description
+    if description:
+        desc_lower = description.lower()
+        
+        # Product/category mentions
+        if any(w in desc_lower for w in ['skincare', 'beauty', 'cosmetic']):
+            return "skincare products look great"
+        if any(w in desc_lower for w in ['fashion', 'apparel', 'clothing']):
+            return "fashion line"
+        if any(w in desc_lower for w in ['food', 'beverage', 'drink']):
+            return "product line"
+        if any(w in desc_lower for w in ['home', 'furniture', 'decor']):
+            return "home products"
+        if any(w in desc_lower for w in ['tech', 'gadget', 'electronic']):
+            return "tech products"
+        
+        # Activity signals
+        if any(w in desc_lower for w in ['launch', 'new', 'recently']):
+            return "recent launch"
+        if any(w in desc_lower for w in ['expanding', 'growing', 'scaling']):
+            return "scaling up"
+    
+    # Priority 2: From signals
+    if signals:
+        for s in signals:
+            s_lower = s.lower()
+            if 'funded' in s_lower or 'raised' in s_lower:
+                return "congrats on the funding"
+            if 'hiring' in s_lower:
+                return "scaling up"
+            if 'verified' in s_lower:
+                return "impressive brand"
+    
+    # Priority 3: From source
+    if 'intent' in source.lower():
+        return "seeking CGI/VFX services"
+    if 'verified' in source.lower():
+        return "funded brand"
+    
+    # Fallback: company type
+    if company:
+        return f"{company}'s work"
+    
+    return "your work"
 
 
-def generate_outreach(lead, channel='email', template_type=None):
-    """
-    Generate a personalized outreach message for a lead.
-    No API needed — uses smart template substitution.
-    """
+def _extract_first_name(lead):
+    """Extract first name from lead."""
+    name = lead.get('contact_name', '').strip()
+    if name:
+        return name.split()[0]
+
+    email = lead.get('contact_email', '').strip()
+    if email and '@' in email:
+        local = email.split('@')[0]
+        generic = ['info', 'contact', 'hello', 'support', 'admin', 'sales', 'team']
+        if local.lower() not in generic:
+            parts = re.split(r'[._\-]', local)
+            if parts and len(parts[0]) > 1:
+                return parts[0].capitalize()
+
+    return 'there'
+
+
+def generate_outreach(lead, channel='email'):
+    """Generate personalized outreach message."""
     niche = lead.get('niche', 'brand_cgi')
-    template_type = template_type or niche
-
-    templates = TEMPLATES.get(template_type, TEMPLATES['brand_cgi'])
-    template = templates.get(channel, templates.get('email', {}))
+    templates = TEMPLATES.get(niche, TEMPLATES['brand_cgi'])
+    template = templates.get(channel, TEMPLATES['brand_cgi']['email'])
 
     if not template:
         return ''
 
-    # Build substitution variables
-    company = lead.get('company_name', 'your company')
-    email = lead.get('contact_email', '')
-    description = lead.get('description', '')
-
-    # Extract first name from contact or generate a generic one
+    # Build variables
     first_name = _extract_first_name(lead)
+    company = lead.get('company_name', 'your company')
+    hook = _generate_hook(lead)
 
-    # Generate a contextual hook
-    hook = _generate_hook(lead, niche)
-
-    # Product reference (for subject lines)
-    product_ref = company + "'s products" if company else "your product"
-
-    # Build the message
     variables = {
         'first_name': first_name,
         'company': company,
         'hook': hook,
-        'product_ref': product_ref,
-        'original_subject': f"What if {product_ref} looked this good on screen?",
     }
 
     body = template.get('body', '')
     for key, value in variables.items():
         body = body.replace('{' + key + '}', value)
 
-    # Include subject for emails
     if channel == 'email' and 'subject' in template:
         subject = template['subject']
         for key, value in variables.items():
@@ -261,84 +250,6 @@ def generate_outreach(lead, channel='email', template_type=None):
         return f"Subject: {subject}\n\n{body}"
 
     return body
-
-
-def generate_followup(lead, followup_type='day4'):
-    """Generate a follow-up message."""
-    template = FOLLOWUP_TEMPLATES.get(followup_type, FOLLOWUP_TEMPLATES['day4'])
-
-    company = lead.get('company_name', 'your company')
-    first_name = _extract_first_name(lead)
-    product_ref = company + "'s products" if company else "your product"
-
-    variables = {
-        'first_name': first_name,
-        'company': company,
-        'original_subject': f"What if {product_ref} looked this good on screen?",
-    }
-
-    subject = template.get('subject', '')
-    body = template.get('body', '')
-
-    for key, value in variables.items():
-        subject = subject.replace('{' + key + '}', value)
-        body = body.replace('{' + key + '}', value)
-
-    return f"Subject: {subject}\n\n{body}"
-
-
-def _extract_first_name(lead):
-    """Extract a first name from the lead data, or return a placeholder."""
-    name = lead.get('contact_name', '').strip()
-    if name:
-        return name.split()[0]
-
-    # Try to extract from email
-    email = lead.get('contact_email', '').strip()
-    if email and '@' in email:
-        local_part = email.split('@')[0]
-        # Check if it's a real name (not info@, contact@, etc.)
-        generic = ['info', 'contact', 'hello', 'support', 'admin', 'sales',
-                    'team', 'office', 'mail', 'enquiry', 'inquiry']
-        if local_part.lower() not in generic:
-            # Try to extract a name (e.g., john.doe → John)
-            parts = re.split(r'[._\-]', local_part)
-            if parts and len(parts[0]) > 1:
-                return parts[0].capitalize()
-
-    return 'there'  # Fallback: "Hi there"
-
-
-def _generate_hook(lead, niche):
-    """Generate a contextual hook based on lead data."""
-    description = lead.get('description', '')
-    signals = lead.get('signals', [])
-
-    # Try to create a hook from the description
-    if description and len(description) > 30:
-        # Extract a meaningful phrase from the description
-        desc_lower = description.lower()
-
-        # Look for specific mentions
-        if 'launch' in desc_lower or 'new' in desc_lower:
-            return "the recent launch looks promising"
-        if 'award' in desc_lower or 'winning' in desc_lower:
-            return "congrats on the recognition"
-        if any(sig in desc_lower for sig in ['series', 'season', 'episode']):
-            return "the production looks compelling"
-
-    # Use signals if available
-    if signals:
-        if any('Hiring' in s for s in signals):
-            return "looks like you're scaling up"
-        if any('Active portfolio' in s for s in signals):
-            return "the portfolio work stands out"
-        if any('Recent activity' in s for s in signals):
-            return "looks like an exciting period"
-
-    # Fallback to niche-specific hooks
-    hooks = HOOKS.get(niche, HOOKS['brand_cgi'])
-    return random.choice(hooks)
 
 
 def get_available_templates():
@@ -350,7 +261,26 @@ def get_available_templates():
 
 
 def get_template_preview(niche, channel='email'):
-    """Get a raw template preview (with placeholders visible)."""
+    """Get a raw template preview."""
     templates = TEMPLATES.get(niche, TEMPLATES['brand_cgi'])
     template = templates.get(channel, {})
     return template.get('body', '')
+
+
+def generate_followup(lead, followup_type='day4'):
+    """Generate follow-up."""
+    first_name = _extract_first_name(lead)
+    company = lead.get('company_name', 'your company')
+
+    body = f"""Hi {first_name},
+
+Just circling back on my note. No pressure if now's not the right time.
+
+If you ARE looking for a CGI/VFX partner, we'd love to chat.
+
+Best,
+Dev
+dev@atmonfx.com"""
+
+    subject = f"Re: {company}"
+    return f"Subject: {subject}\n\n{body}"

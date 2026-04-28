@@ -1,6 +1,7 @@
 """
-F4Leads Scraper v2 — International D2C lead discovery engine.
-Multi-source: DuckDuckGo Web + DuckDuckGo Maps + Deep website crawling.
+F4Leads Scraper v3 — INTENT-BASED lead discovery.
+Finds leads actively LOOKING for CGI/VFX services (job posts, RFPs, directories).
+NOT random web results.
 """
 import re, time, random, logging
 from urllib.parse import urlparse, urljoin
@@ -13,90 +14,88 @@ from engine.outreach import generate_outreach
 
 logger = logging.getLogger(__name__)
 
-# ─── SEARCH QUERIES (INTERNATIONAL D2C FOCUS) ────────────────────────────────
-WEB_QUERIES = {
+# ─── INTENT-BASED QUERIES (Finding leads actively seeking CGI/VFX) ───
+# These queries find: job posts, RFPs, quote requests, project announcements
+INTENT_QUERIES = {
     'brand_cgi': [
-        'DTC brand product launch 2025 2026',
-        'direct to consumer brand CMO marketing',
-        'Shopify brand product commercial video',
-        'ecommerce brand CGI product visualization',
-        'beauty skincare brand product campaign',
-        'consumer electronics brand product marketing',
-        'fashion DTC brand founder CEO ecommerce',
-        'food beverage brand product photography',
-        'wellness lifestyle brand product launch',
-        'sustainable brand ecommerce founder',
-        'luxury premium brand product visualization',
-        'D2C brand Series A funded startup',
-        'UK DTC brand product launch ecommerce',
-        'European DTC brand direct consumer',
-        'Dubai UAE luxury brand ecommerce',
-        'Australian DTC brand founder ecommerce',
-        'Canadian direct consumer brand startup',
-        'beauty brand new product campaign 2026',
-        'home decor brand DTC ecommerce',
-        'pet brand direct consumer products',
+        # Job posts / hiring
+        'need 3D product visualization freelancer',
+        'looking for CGI artist for product video',
+        'hiring 3D animator for e-commerce',
+        'product commercial production needed',
+        'CGI studio needed for brand campaign',
+        # RFPs / quotes
+        '3D product render quote request',
+        'product animation quote',
+        ' CGI commercial budget quote',
+        # Directories
+        'product visualization studio directory',
+        'top CGI companies for e-commerce',
     ],
     'ott_film': [
-        'film production company visual effects VFX',
-        'OTT series production VFX partner',
-        'streaming content production company',
-        'post production studio outsourcing VFX',
-        'commercial production company CGI',
-        'animation studio feature film production',
-        'independent film producer VFX needs',
-        'TV series production visual effects',
-        'Netflix Amazon production company VFX',
-        'documentary production CGI effects',
+        'VFX artist required for series',
+        'need VFX studio for film',
+        'outsourcing VFX work streaming',
+        'post production VFX contract',
+        'looking for VFX supervisor',
+        'CGI company for film VFX',
     ],
     'archviz': [
-        'architecture firm 3D visualization rendering',
-        'real estate developer CGI walkthrough',
-        'architectural visualization company',
-        'interior design studio 3D rendering',
-        'property developer CGI marketing',
-        'real estate rendering walkthrough company',
-        'luxury real estate visualization',
-        'commercial property developer renders',
+        'real-time walkthrough quote',
+        'archviz studio needed',
+        'Unreal Engine 3D walkthrough',
+        'architectural rendering service',
+        '3D visualization company quote',
     ],
     'gaming': [
-        'indie game studio 3D art',
-        'game development company assets',
-        'mobile game developer 3D artist',
-        'game art outsourcing studio',
-        'Unity Unreal game studio indie',
-        'game design company 3D modeling',
-        'VR AR game studio development',
-        'metaverse game development company',
+        'need 3D artist for game',
+        'game asset outsourcing',
+        'Unity Unreal artist needed',
+        'indie game studio 3D artist',
     ],
     'product_viz': [
-        'product visualization 3D rendering company',
-        'ecommerce product photography 3D CGI',
-        'product animation company rendering',
-        'Amazon product listing 3D renders',
-        'packaging design 3D visualization',
-        'industrial product visualization CGI',
-        'product CGI commercial studio',
-        'furniture product 3D rendering',
+        '3D product rendering service',
+        'product CGI studio',
+        'ecommerce 3D renders needed',
+        'product visualization quote',
+        '360 product spin studio',
     ],
 }
 
-# Maps queries: category + cities for local business discovery
-MAPS_QUERIES = {
-    'brand_cgi': ['cosmetics company', 'skincare brand', 'fashion brand', 'DTC brand', 'ecommerce company', 'consumer brand'],
-    'ott_film': ['film production company', 'VFX studio', 'post production studio', 'animation studio', 'video production company'],
-    'archviz': ['architecture firm', 'real estate developer', 'interior design studio', 'architectural visualization'],
-    'gaming': ['game development studio', 'game design company', 'indie game studio'],
-    'product_viz': ['product photography studio', '3D rendering company', 'product design studio'],
+# Additional: Search by PLATFORMS where CGI/VFX work is posted
+PLATFORM_QUERIES = {
+    'upwork': [
+        '3D visualization job post',
+        'CGI artist job',
+        'product animation upwork',
+    ],
+    'freelancer': [
+        '3D rendering project',
+        'CGI freelance project',
+    ],
+    'fiverr': [
+        '3D product visualization gig',
+        'CGI animation service',
+    ],
 }
 
-MAPS_CITIES = [
-    'New York', 'Los Angeles', 'San Francisco', 'Chicago', 'Austin', 'Miami',
-    'London', 'Manchester', 'Berlin', 'Amsterdam', 'Paris', 'Stockholm',
-    'Dubai', 'Abu Dhabi', 'Sydney', 'Melbourne', 'Toronto', 'Singapore',
+# ─── COMPANY LISTS (Pre-verified D2C brands with budgets) ───
+VERIFIED_DTC_BRANDS = [
+    # From funding news - these brands HAVE BUDGETS
+    {'name': 'ClayCo', 'niche': 'beauty', 'country': 'India'},
+    {'name': 'AntiNorm', 'niche': 'beauty', 'country': 'India'},
+    {'name': 'Unbound', 'niche': 'personal care', 'country': 'India'},
+    {'name': 'Salty', 'niche': 'fashion', 'country': 'India'},
+    {'name': 'Bluetyga', 'niche': 'apparel', 'country': 'India'},
+    # Add more verified brands from research
 ]
 
-MAPS_CITIES_INDIA = ['Mumbai', 'Delhi', 'Bangalore', 'Pune', 'Hyderabad', 'Chennai']
+# ─── BUSINESS DIRECTORIES (Companies that buy CGI) ───
+DIRECTORIES = [
+    'https://www.clutch.co/categories/video-production',
+    'https://www.goodfirms.co/category/video-production',
+    'https://www.theplacesto.be/',
+]
 
 EMAIL_BLACKLIST = {
     'example.com', 'sentry.io', 'wixpress.com', 'schema.org',
@@ -125,45 +124,12 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.9',
 }
 
-# Country detection keywords
-COUNTRY_MAP = {
-    'United States': ['usa', 'united states', 'u.s.', 'america'],
-    'United Kingdom': ['uk', 'united kingdom', 'britain', 'england', 'scotland', 'wales'],
-    'Germany': ['germany', 'deutschland'], 'France': ['france'],
-    'Netherlands': ['netherlands', 'holland'], 'Sweden': ['sweden'],
-    'UAE': ['uae', 'dubai', 'abu dhabi', 'united arab emirates'],
-    'Australia': ['australia'], 'Canada': ['canada'],
-    'Singapore': ['singapore'], 'India': ['india'],
-}
-
-INDIAN_CITIES = [
-    'mumbai', 'delhi', 'bangalore', 'bengaluru', 'hyderabad', 'chennai',
-    'kolkata', 'pune', 'noida', 'gurgaon', 'gurugram', 'ahmedabad',
-    'jaipur', 'lucknow', 'chandigarh', 'kochi', 'indore', 'coimbatore',
-    'new delhi', 'ncr', 'goa',
-]
-
-INTL_CITIES = [
-    'new york', 'los angeles', 'san francisco', 'chicago', 'austin', 'miami',
-    'london', 'manchester', 'berlin', 'amsterdam', 'paris', 'stockholm',
-    'dubai', 'abu dhabi', 'sydney', 'melbourne', 'toronto', 'singapore',
-    'seattle', 'boston', 'denver', 'atlanta', 'dallas', 'houston',
-    'bristol', 'edinburgh', 'munich', 'hamburg', 'barcelona', 'madrid',
-    'copenhagen', 'oslo', 'helsinki', 'lisbon', 'milan', 'rome',
-    'riyadh', 'doha', 'kuwait', 'brisbane', 'perth', 'auckland',
-    'vancouver', 'montreal', 'hong kong', 'tokyo', 'seoul',
-]
-
-DECISION_MAKER_TITLES = [
-    'founder', 'co-founder', 'ceo', 'cto', 'cmo', 'coo', 'cfo',
-    'director', 'head', 'vp', 'vice president', 'manager',
-    'lead', 'chief', 'owner', 'partner', 'president',
-    'marketing', 'creative', 'production', 'brand',
-]
+# High-value countries (where clients have budgets)
+HIGH_VALUE_COUNTRIES = ['United States', 'United Kingdom', 'UAE', 'Australia', 'Canada', 'Germany', 'France', 'Netherlands', 'Sweden', 'Singapore']
 
 
 class LeadScraper:
-    """Multi-source lead scraping engine for AtmonFX."""
+    """INTENT-BASED lead scraping: find leads actively seeking CGI/VFX services."""
 
     def __init__(self):
         self.session = requests.Session()
@@ -171,36 +137,42 @@ class LeadScraper:
         self.found_domains = set()
 
     def generate_leads(self, niche='brand_cgi', max_queries=6, results_per_query=12, progress_callback=None):
-        """Main entry: Web Search + Maps Search → Scrape → Enrich → Score → Outreach."""
+        """Main entry: Intent-based search → Verified directories → Enrich → Score."""
         all_leads = []
 
-        # Phase 1: Web search
+        # Phase 1: Intent searches (job posts, RFPs, quotes)
         if progress_callback:
-            progress_callback("Searching the web for prospects...", 5)
-        web_leads = self._web_search(niche, max_queries, results_per_query, progress_callback)
-        all_leads.extend(web_leads)
+            progress_callback("Finding leads actively looking for CGI/VFX...", 5)
+        intent_leads = self._intent_search(niche, max_queries, results_per_query, progress_callback)
+        all_leads.extend(intent_leads)
 
-        # Phase 2: Maps search
+        # Phase 2: Verified D2C brands (from funding news)
         if progress_callback:
-            progress_callback("Searching maps for businesses...", 30)
-        maps_leads = self._maps_search(niche, progress_callback)
-        all_leads.extend(maps_leads)
+            progress_callback("Adding verified D2C brands...", 30)
+        verified_leads = self._verified_brands(niche)
+        all_leads.extend(verified_leads)
 
-        logger.info(f"Raw leads collected: {len(all_leads)} (web: {len(web_leads)}, maps: {len(maps_leads)})")
-
-        # Phase 3: Deep enrichment
+        # Phase 3: Business directories
         if progress_callback:
-            progress_callback(f"Enriching {len(all_leads)} leads from websites...", 50)
+            progress_callback("Searching business directories...", 50)
+        directory_leads = self._directory_search(niche, progress_callback)
+        all_leads.extend(directory_leads)
+
+        logger.info(f"Raw leads collected: {len(all_leads)}")
+
+        # Phase 4: Deep enrichment (get contact info)
+        if progress_callback:
+            progress_callback(f"Enriching {len(all_leads)} leads...", 60)
         enriched = self._enrich_batch(all_leads)
 
-        # Phase 4: Quality gate
+        # Phase 5: Quality filter
         if progress_callback:
-            progress_callback("Applying quality filters...", 75)
-        quality_leads = self._quality_gate(enriched)
+            progress_callback("Applying quality filters...", 80)
+        quality_leads = self._quality_filter(enriched)
 
-        # Phase 5: Score + outreach
+        # Phase 6: Score
         if progress_callback:
-            progress_callback("Scoring leads against ICP...", 85)
+            progress_callback("Scoring leads...", 90)
         for lead in quality_leads:
             lead['icp_score'] = score_lead(lead)
             lead['outreach_draft'] = generate_outreach(lead)
@@ -208,130 +180,158 @@ class LeadScraper:
         quality_leads.sort(key=lambda x: x['icp_score'], reverse=True)
 
         if progress_callback:
-            progress_callback(f"Done! {len(quality_leads)} quality leads generated.", 100)
+            progress_callback(f"Done! {len(quality_leads)} quality leads.", 100)
+        
         return quality_leads
 
-    # ─── WEB SEARCH ───────────────────────────────────────────────────────
-    def _web_search(self, niche, max_queries, results_per_query, progress_callback):
-        queries = WEB_QUERIES.get(niche, WEB_QUERIES['brand_cgi'])
+    # ─── INTENT SEARCH ────────────────────────────────────────────────────────
+    def _intent_search(self, niche, max_queries, results_per_query, progress_callback):
+        """Search for leads ACTIVELY seeking CGI services."""
+        queries = INTENT_QUERIES.get(niche, INTENT_QUERIES['brand_cgi'])
         selected = random.sample(queries, min(max_queries, len(queries)))
         leads = []
 
         for i, query in enumerate(selected):
             if progress_callback:
-                progress_callback(f"Web search: {query[:50]}...", 5 + (i / len(selected)) * 25)
+                progress_callback(f"Searching: {query[:40]}...", 10 + (i / len(selected)) * 20)
             try:
+                # Use DDGS to find intent-based results
                 results = DDGS().text(query, max_results=results_per_query, region='wt-wt')
-                logger.info(f"Web '{query}' → {len(results or [])} results")
+                logger.info(f"Intent '{query}' → {len(results or [])} results")
                 for r in (results or []):
-                    lead = self._process_web_result(r, niche, query)
+                    lead = self._process_result(r, niche, query)
                     if lead and lead['domain'] not in self.found_domains:
                         self.found_domains.add(lead['domain'])
+                        lead['source'] = f'Intent: "{query}"'
                         leads.append(lead)
-                time.sleep(random.uniform(2.5, 4.5))
+                time.sleep(random.uniform(2, 4))
             except Exception as e:
-                logger.error(f"Web search error '{query}': {e}")
-                time.sleep(3)
+                logger.error(f"Intent search error '{query}': {e}")
+                time.sleep(2)
         return leads
 
-    # ─── MAPS SEARCH ──────────────────────────────────────────────────────
-    def _maps_search(self, niche, progress_callback):
-        categories = MAPS_QUERIES.get(niche, [])
-        if not categories:
-            return []
-
-        # Pick 3 international cities + 1 Indian city
-        intl_cities = random.sample(MAPS_CITIES, min(3, len(MAPS_CITIES)))
-        india_cities = random.sample(MAPS_CITIES_INDIA, 1)
-        cities = intl_cities + india_cities
-
-        # Pick 2 categories
-        selected_cats = random.sample(categories, min(2, len(categories)))
+    # ─── VERIFIED BRANDS ──────────────────────────────────────────────────────
+    def _verified_brands(self, niche):
+        """Add verified D2C brands WITH FUNDING (they have budgets)."""
         leads = []
-
-        for cat in selected_cats:
-            for city in cities:
-                if progress_callback:
-                    progress_callback(f"Maps: {cat} in {city}...", 35)
-                try:
-                    results = DDGS().maps(f"{cat} {city}", max_results=8)
-                    for r in (results or []):
-                        lead = self._process_maps_result(r, niche, cat, city)
-                        if lead and lead['domain'] not in self.found_domains:
-                            self.found_domains.add(lead['domain'])
-                            leads.append(lead)
-                    time.sleep(random.uniform(2, 4))
-                except Exception as e:
-                    logger.error(f"Maps search error '{cat} {city}': {e}")
-                    time.sleep(2)
+        for brand in VERIFIED_DTC_BRANDS:
+            domain = f"{brand['name'].lower()}.com"
+            if domain in self.found_domains:
+                continue
+            self.found_domains.add(domain)
+            leads.append({
+                'company_name': brand['name'],
+                'website': f'https://{domain}',
+                'domain': domain,
+                'contact_name': '',
+                'contact_role': '',
+                'contact_email': '',
+                'phone_number': '',
+                'linkedin_url': '',
+                'instagram_url': '',
+                'niche': niche,
+                'location': brand['country'],
+                'description': f"Funded {brand['niche']} brand - potential client",
+                'signals': ['Verified D2C brand with funding'],
+                'icp_score': 0,
+                'stage': 'research',
+                'outreach_draft': '',
+                'notes': '',
+                'source': 'Verified list',
+            })
         return leads
 
-    # ─── PROCESS RESULTS ──────────────────────────────────────────────────
-    def _process_web_result(self, result, niche, query):
+    # ─── DIRECTORY SEARCH ────────────────────────────────────────────────
+    def _directory_search(self, niche, progress_callback):
+        """Search business directories for CGI/VFX providers (their clients)."""
+        leads = []
+        for i, dir_url in enumerate(DIRECTORIES[:3]):
+            if progress_callback:
+                progress_callback(f"Searching directory: {dir_url.split('/')[-2]}...", 40)
+            try:
+                resp = self.session.get(dir_url, timeout=10)
+                if resp.ok:
+                    soup = BeautifulSoup(resp.text, 'lxml')
+                    # Extract company listings
+                    for item in soup.find_all('a', href=True)[:15]:
+                        href = item.get('href', '')
+                        title = item.get_text(strip=True)
+                        if 'http' in href and '.' in title and len(title) > 2:
+                            try:
+                                parsed = urlparse(href)
+                                domain = parsed.netloc.replace('www.', '')
+                                if domain not in self.found_domains and 'clutch' not in domain:
+                                    self.found_domains.add(domain)
+                                    leads.append({
+                                        'company_name': title[:50],
+                                        'website': href,
+                                        'domain': domain,
+                                        'contact_name': '',
+                                        'contact_role': '',
+                                        'contact_email': '',
+                                        'phone_number': '',
+                                        'linkedin_url': '',
+                                        'instagram_url': '',
+                                        'niche': niche,
+                                        'location': '',
+                                        'description': f"Business directory listing: {title[:100]}",
+                                        'signals': ['Directory listing'],
+                                        'icp_score': 0,
+                                        'stage': 'research',
+                                        'outreach_draft': '',
+                                        'notes': '',
+                                        'source': f'Directory: {dir_url}',
+                                    })
+                            except:
+                                pass
+            except Exception as e:
+                logger.error(f"Directory error: {e}")
+        return leads
+
+    # ─── PROCESS RESULTS ───────────────────────────────────────────────��─────
+    def _process_result(self, result, niche, query):
+        """Process a search result into a lead."""
         url = result.get('href', '')
         if not url:
             return None
         parsed = urlparse(url)
         domain = parsed.netloc.replace('www.', '').lower()
+        
+        # Skip directories and generic sites
         if any(s in domain for s in SKIP_DOMAINS):
             return None
+        
         company_name = self._extract_company_name(result.get('title', ''), domain)
+        description = (result.get('body', '') or '')[:300]
+        
+        # Only keep if there's useful info
+        if not company_name or len(company_name) < 2:
+            return None
+            
         return {
             'company_name': company_name,
             'website': f"{parsed.scheme}://{parsed.netloc}",
             'domain': domain,
-            'contact_name': '', 'contact_role': '',
-            'contact_email': '', 'phone_number': '',
-            'linkedin_url': '', 'instagram_url': '',
-            'niche': niche, 'location': '', 'country': '',
-            'description': (result.get('body', '') or '')[:500],
-            'signals': [], 'icp_score': 0, 'stage': 'research',
-            'outreach_draft': '', 'notes': '',
-            'source': f'Web: "{query[:60]}"',
+            'contact_name': '',
+            'contact_role': '',
+            'contact_email': '',
+            'phone_number': '',
+            'linkedin_url': '',
+            'instagram_url': '',
+            'niche': niche,
+            'location': '',
+            'description': description,
+            'signals': [f'Found via: {query}'],
+            'icp_score': 0,
+            'stage': 'research',
+            'outreach_draft': '',
+            'notes': '',
+            'source': f'Web: "{query}"',
         }
 
-    def _process_maps_result(self, result, niche, category, city):
-        url = result.get('url', '')
-        title = result.get('title', '')
-        if not title:
-            return None
-
-        domain = ''
-        website = ''
-        if url:
-            parsed = urlparse(url if url.startswith('http') else f'https://{url}')
-            domain = parsed.netloc.replace('www.', '').lower()
-            website = f"{parsed.scheme}://{parsed.netloc}"
-            if any(s in domain for s in SKIP_DOMAINS):
-                return None
-        else:
-            domain = title.lower().replace(' ', '').replace(',', '')[:30]
-
-        phone = result.get('phone', '') or ''
-        address = result.get('address', '') or ''
-        city_r = result.get('city', '') or city
-        state = result.get('state', '') or ''
-        country_r = result.get('country', '') or ''
-        location = ', '.join(filter(None, [address[:100], city_r, state, country_r]))
-
-        country = self._detect_country(location + ' ' + city)
-
-        return {
-            'company_name': title,
-            'website': website, 'domain': domain,
-            'contact_name': '', 'contact_role': '',
-            'contact_email': '', 'phone_number': phone,
-            'linkedin_url': '', 'instagram_url': '',
-            'niche': niche, 'location': location, 'country': country,
-            'description': (result.get('desc', '') or '')[:500],
-            'signals': [f'Found via Maps in {city}'],
-            'icp_score': 0, 'stage': 'research',
-            'outreach_draft': '', 'notes': '',
-            'source': f'Maps: "{category}" in {city}',
-        }
-
-    # ─── ENRICHMENT ───────────────────────────────────────────────────────
+    # ─── ENRICHMENT ─────────────────────────────────────────────────────
     def _enrich_batch(self, leads, max_workers=4):
+        """Enrich leads with contact info."""
         enriched = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self._enrich_lead, l): l for l in leads}
@@ -344,228 +344,116 @@ class LeadScraper:
         return enriched
 
     def _enrich_lead(self, lead):
+        """Enrich a single lead with contact info from website."""
         website = lead.get('website', '')
         if not website:
             return lead
         try:
-            # Page 1: Homepage
             resp = self.session.get(website, timeout=8, allow_redirects=True)
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, 'lxml')
-
-            # Emails from homepage
+            
+            # Extract emails
             emails = self._extract_emails(resp.text, lead['domain'])
             if emails:
                 lead['contact_email'] = emails[0]
-                if len(emails) > 1:
-                    lead['signals'].append(f"Contacts: {', '.join(emails[:3])}")
-
-            # Phone from homepage
+            
+            # Extract phones
             phones = self._extract_phones(soup, resp.text)
             if phones and not lead['phone_number']:
                 lead['phone_number'] = phones[0]
-
-            # Meta description
-            meta = soup.find('meta', attrs={'name': 'description'})
-            if meta and meta.get('content'):
-                lead['description'] = meta['content'][:500]
-
-            # Better company name from title
-            title_tag = soup.find('title')
-            if title_tag and title_tag.string:
-                better = self._extract_company_name(title_tag.string.strip(), lead['domain'])
-                if 0 < len(better) < len(lead.get('company_name', '') or 'x' * 100):
-                    lead['company_name'] = better
-
-            # Social links
-            self._extract_social_links(soup, lead)
-
-            # Location + country
-            loc = self._extract_location(soup)
-            if loc and not lead['location']:
-                lead['location'] = loc
-            if not lead['country']:
-                text = soup.get_text(separator=' ', strip=True)[:5000]
-                lead['country'] = self._detect_country(text + ' ' + lead.get('location', ''))
-
-            # Business signals
-            lead['signals'].extend(self._extract_signals(soup, resp.text))
-
-            # Page 2: Contact page
-            self._scrape_subpage(website, soup, lead, ['contact', 'reach', 'get-in-touch', 'connect'])
-            time.sleep(random.uniform(0.3, 0.8))
-
-            # Page 3: About/Team page
-            self._scrape_team_page(website, soup, lead)
-            time.sleep(random.uniform(0.3, 0.8))
-
+            
+            # Extract social links
+            for link in soup.find_all('a', href=True):
+                href = link.get('href', '').lower()
+                if 'linkedin.com/company' in href and not lead['linkedin_url']:
+                    lead['linkedin_url'] = href
+                elif 'instagram.com/' in href and not lead['instagram_url']:
+                    if 'instagram.com/p/' not in href:
+                        lead['instagram_url'] = href
+            
+            # Try contact page
+            self._scrape_contact_page(website, lead)
+            
         except requests.RequestException as e:
             logger.debug(f"Could not fetch {website}: {e}")
-        except Exception as e:
-            logger.debug(f"Error enriching {website}: {e}")
         return lead
 
-    def _scrape_subpage(self, base_url, soup, lead, keywords):
-        """Find and scrape a subpage (contact, about, etc.) for emails/phones."""
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '').lower()
-            text = link.get_text(strip=True).lower()
-            if any(k in href or k in text for k in keywords):
-                full_url = urljoin(base_url, link['href'])
-                try:
-                    r = self.session.get(full_url, timeout=6)
-                    if r.ok:
-                        domain = urlparse(base_url).netloc.replace('www.', '')
-                        emails = self._extract_emails(r.text, domain)
-                        if emails and not lead['contact_email']:
-                            lead['contact_email'] = emails[0]
-                        sub_soup = BeautifulSoup(r.text, 'lxml')
-                        phones = self._extract_phones(sub_soup, r.text)
-                        if phones and not lead['phone_number']:
-                            lead['phone_number'] = phones[0]
-                    return
-                except Exception:
-                    pass
+    def _scrape_contact_page(self, base_url, lead):
+        """Scrape contact page for email/phone."""
+        contact_paths = ['contact', 'contact-us', 'reach-us', 'connect', 'get-in-touch']
+        for path in contact_paths:
+            try:
+                url = urljoin(base_url, f'/{path}/')
+                r = self.session.get(url, timeout=5)
+                if r.ok:
+                    emails = self._extract_emails(r.text, lead['domain'])
+                    phones = self._extract_phones(BeautifulSoup(r.text, 'lxml'), r.text)
+                    if emails and not lead['contact_email']:
+                        lead['contact_email'] = emails[0]
+                    if phones and not lead['phone_number']:
+                        lead['phone_number'] = phones[0]
+                    if lead['contact_email'] or lead['phone_number']:
+                        return
+            except:
+                pass
 
-    def _scrape_team_page(self, base_url, soup, lead):
-        """Scrape about/team page for decision-maker names and roles."""
-        team_keywords = ['about', 'team', 'people', 'leadership', 'founders', 'our-team']
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '').lower()
-            text = link.get_text(strip=True).lower()
-            if any(k in href or k in text for k in team_keywords):
-                full_url = urljoin(base_url, link['href'])
-                try:
-                    r = self.session.get(full_url, timeout=6)
-                    if r.ok:
-                        team_soup = BeautifulSoup(r.text, 'lxml')
-                        name, role = self._extract_team_member(team_soup)
-                        if name and not lead['contact_name']:
-                            lead['contact_name'] = name
-                        if role and not lead['contact_role']:
-                            lead['contact_role'] = role
-                        if not lead['contact_email']:
-                            domain = urlparse(base_url).netloc.replace('www.', '')
-                            emails = self._extract_emails(r.text, domain)
-                            if emails:
-                                lead['contact_email'] = emails[0]
-                    return
-                except Exception:
-                    pass
-
-    def _extract_team_member(self, soup):
-        """Extract a decision-maker name and role from a team/about page."""
-        text = soup.get_text(separator='\n', strip=True)
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
-
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            if any(t in line_lower for t in DECISION_MAKER_TITLES):
-                if len(line) < 80:
-                    # This line might be a role, check previous line for name
-                    if i > 0 and len(lines[i-1]) < 50 and not any(c.isdigit() for c in lines[i-1]):
-                        return lines[i-1].strip(), line.strip()
-                    # Or check next line
-                    if i + 1 < len(lines) and len(lines[i+1]) < 50:
-                        return lines[i+1].strip(), line.strip()
-                    # Name might be in the same line: "John Doe - CEO"
-                    for sep in [' - ', ' | ', ' — ', ', ', ' – ']:
-                        if sep in line:
-                            parts = line.split(sep)
-                            if len(parts) == 2:
-                                p0, p1 = parts[0].strip(), parts[1].strip()
-                                if any(t in p1.lower() for t in DECISION_MAKER_TITLES):
-                                    return p0, p1
-                                if any(t in p0.lower() for t in DECISION_MAKER_TITLES):
-                                    return p1, p0
-        return '', ''
-
-    # ─── EXTRACTORS ───────────────────────────────────────────────────────
     def _extract_emails(self, html_text, domain):
+        """Extract valid emails."""
         pattern = r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
         raw = re.findall(pattern, html_text)
-        valid, seen = [], set()
+        valid = []
         for e in raw:
             e = e.lower().strip('.')
-            if e in seen:
-                continue
-            seen.add(e)
             ed = e.split('@')[1]
             if any(bl in ed for bl in EMAIL_BLACKLIST):
                 continue
             if ed.endswith(('.png', '.jpg', '.gif', '.svg', '.css', '.js')):
                 continue
             valid.append(e)
+        # Prefer domain emails
         same = [e for e in valid if domain in e]
         other = [e for e in valid if domain not in e]
-        return (same + other)[:5]
+        return (same + other)[:3]
 
     def _extract_phones(self, soup, html_text):
-        """Extract phone numbers from tel: links and page text."""
+        """Extract phone numbers."""
         phones = []
-        # tel: links (most reliable)
+        # tel: links
         for link in soup.find_all('a', href=True):
             href = link.get('href', '')
             if href.startswith('tel:'):
-                phone = href.replace('tel:', '').strip().replace('%20', ' ')
+                phone = href.replace('tel:', '').strip()
                 if len(re.sub(r'\D', '', phone)) >= 7:
                     phones.append(phone)
-        # Regex on visible text
+        # Regex
         text = soup.get_text(separator=' ', strip=True)
         phone_pattern = r'(?:\+\d{1,3}[\s.\-]?)?\(?\d{2,4}\)?[\s.\-]?\d{3,4}[\s.\-]?\d{3,4}'
         for match in re.findall(phone_pattern, text):
             digits = re.sub(r'\D', '', match)
-            if 7 <= len(digits) <= 15 and match not in phones:
+            if 7 <= len(digits) <= 15:
                 phones.append(match.strip())
-        return phones[:3]
+        return list(set(phones))[:3]
 
-    def _extract_social_links(self, soup, lead):
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '').lower()
-            if 'linkedin.com/company' in href and not lead['linkedin_url']:
-                lead['linkedin_url'] = link['href']
-            elif 'instagram.com/' in href and not lead['instagram_url']:
-                ig = link['href']
-                if 'instagram.com/p/' not in ig.lower():
-                    lead['instagram_url'] = ig
-
-    def _extract_location(self, soup):
-        text = soup.get_text(separator=' ', strip=True)[:5000].lower()
-        for city in INTL_CITIES:
-            if city in text:
-                return city.title()
-        for city in INDIAN_CITIES:
-            if city in text:
-                return f"{city.title()}, India"
-        return ''
-
-    def _detect_country(self, text):
-        text_lower = text.lower()
-        for country, keywords in COUNTRY_MAP.items():
-            if any(kw in text_lower for kw in keywords):
-                return country
-        return ''
-
-    def _extract_signals(self, soup, html_text):
-        signals = []
-        t = html_text.lower()
-        if any(x in t for x in ['careers', "we're hiring", 'join our team', 'open positions']):
-            signals.append('Hiring actively (growth signal)')
-        if any(x in t for x in ['our clients', 'trusted by', 'worked with', 'brands we']):
-            signals.append('Has existing clients')
-        if any(x in t for x in ['portfolio', 'showreel', 'our work', 'case study']):
-            signals.append('Active portfolio')
-        if any(x in t for x in ['shop now', 'add to cart', 'buy now', 'shopify', 'woocommerce']):
-            signals.append('Active e-commerce')
-        if any(x in t for x in ['2025', '2026', 'latest', 'new launch', 'coming soon']):
-            signals.append('Recent activity detected')
-        if any(x in t for x in ['funded', 'series a', 'series b', 'raised', 'investment']):
-            signals.append('Funded company (budget signal)')
-        if any(x in t for x in ['award', 'winning', 'recognized', 'featured in']):
-            signals.append('Award/recognition')
-        return signals[:5]
+    # ─── QUALITY FILTER ────────────────────────────────────────────
+    def _quality_filter(self, leads):
+        """Filter for leads with contact info OR verified."""
+        quality = []
+        for lead in leads:
+            has_email = bool(lead.get('contact_email'))
+            has_phone = bool(lead.get('phone_number'))
+            has_website = bool(lead.get('website'))
+            has_description = len(lead.get('description', '')) > 15
+            
+            # Keep if: contact info OR website+description OR verified source
+            is_verified = lead.get('source') == 'Verified list'
+            if has_email or has_phone or (has_website and has_description) or is_verified:
+                quality.append(lead)
+        logger.info(f"Quality filter: {len(leads)} → {len(quality)}")
+        return quality
 
     def _extract_company_name(self, title, domain):
+        """Extract company name from title."""
         for sep in [' - ', ' | ', ' — ', ' :: ', ' – ']:
             if sep in title:
                 title = title.split(sep)[0].strip()
@@ -573,17 +461,3 @@ class LeadScraper:
         if len(title) > 60 or not title:
             title = domain.split('.')[0].replace('-', ' ').replace('_', ' ').title()
         return title
-
-    # ─── QUALITY GATE ─────────────────────────────────────────────────────
-    def _quality_gate(self, leads):
-        """Filter out leads that are too low quality to be useful."""
-        quality = []
-        for lead in leads:
-            has_contact = bool(lead.get('contact_email') or lead.get('phone_number'))
-            has_website = bool(lead.get('website'))
-            has_description = len(lead.get('description', '')) > 20
-            # Keep lead if it has contact info OR (has website AND description)
-            if has_contact or (has_website and has_description):
-                quality.append(lead)
-        logger.info(f"Quality gate: {len(leads)} → {len(quality)} leads")
-        return quality
